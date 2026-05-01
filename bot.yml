@@ -1,0 +1,39 @@
+# .github/workflows/bot.yml
+#
+# Runs the Telegram bot continuously inside GitHub Actions.
+# GitHub Actions jobs time out after 6 hours, so this workflow
+# re-triggers itself automatically to keep the bot alive 24/7.
+
+name: Run Trading Calendar Bot
+
+on:
+  # Re-runs itself every 5 hours 50 min to stay within the 6h limit
+  schedule:
+    - cron: "50 */6 * * *"   # every 6 hours
+
+  # Also allows you to start/restart manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350   # ~5h 50min — just under the 6h GitHub limit
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHANNEL_IDS:    ${{ secrets.CHANNEL_IDS }}
+        run: python bot.py
