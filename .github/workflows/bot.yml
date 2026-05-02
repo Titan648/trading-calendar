@@ -1,0 +1,41 @@
+# .github/workflows/bot.yml
+# Restart cron is set to 01:00, 07:30, 13:00, 19:30 UTC
+# This ensures restarts NEVER overlap with digest times (07:00 and 17:00 UTC)
+
+name: Run Trading Calendar Bot
+
+on:
+  schedule:
+    - cron: "0 1 * * *"    # 01:00 UTC
+    - cron: "30 7 * * *"   # 07:30 UTC  (after morning digest at 07:00)
+    - cron: "0 13 * * *"   # 13:00 UTC
+    - cron: "30 17 * * *"  # 17:30 UTC  (after evening digest at 17:00)
+
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          GITHUB_TOKEN:   ${{ secrets.GIST_TOKEN }}
+          GIST_ID:        ${{ secrets.GIST_ID }}
+          CHANNEL_IDS:    ${{ secrets.CHANNEL_IDS }}
+          FINNHUB_TOKEN:  ${{ secrets.FINNHUB_TOKEN }}
+        run: python bot.py
