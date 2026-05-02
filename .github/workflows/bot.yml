@@ -29,4 +29,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID:        ${{ secrets.GIST_ID }}
           CHANNEL_IDS:    ${{ secrets.CHANNEL_IDS }}
+          FINNHUB_TOKEN:  ${{ secrets.FINNHUB_TOKEN }}
         run: python bot.py
