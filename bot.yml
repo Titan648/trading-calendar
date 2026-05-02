@@ -37,4 +37,5 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHANNEL_IDS:    ${{ secrets.CHANNEL_IDS }}
           GITHUB_TOKEN: ${{ secrets.GIST_TOKEN }}
+          FINNHUB_TOKEN:  ${{ secrets.FINNHUB_TOKEN }}
         run: python bot.py
