@@ -38,4 +38,5 @@ jobs:
           GIST_ID:        ${{ secrets.GIST_ID }}
           CHANNEL_IDS:    ${{ secrets.CHANNEL_IDS }}
           FINNHUB_TOKEN:  ${{ secrets.FINNHUB_TOKEN }}
+          OWNER_ID: ${{ secrets.OWNER_ID }}
         run: python bot.py
