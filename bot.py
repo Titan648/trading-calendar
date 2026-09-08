@@ -27,8 +27,64 @@ from telegram.ext import (
 )
 from datetime import time as dtime
 
+try:
+    from deep_translator import GoogleTranslator
+except ImportError:  # pragma: no cover
+    GoogleTranslator = None
+
 # Track which digests were already sent today to prevent duplicates
 _sent_today: dict = {}
+
+# ─── Dates en français ─────────────────────────────────────────────────────
+FR_DAYS = {
+    "Monday": "lundi", "Tuesday": "mardi", "Wednesday": "mercredi",
+    "Thursday": "jeudi", "Friday": "vendredi", "Saturday": "samedi", "Sunday": "dimanche",
+}
+FR_MONTHS = {
+    "January": "janvier", "February": "février", "March": "mars", "April": "avril",
+    "May": "mai", "June": "juin", "July": "juillet", "August": "août",
+    "September": "septembre", "October": "octobre", "November": "novembre", "December": "décembre",
+}
+FR_MONTHS_ABBR = {
+    "Jan": "janv.", "Feb": "févr.", "Mar": "mars", "Apr": "avr.", "May": "mai",
+    "Jun": "juin", "Jul": "juil.", "Aug": "août", "Sep": "sept.", "Oct": "oct.",
+    "Nov": "nov.", "Dec": "déc.",
+}
+
+
+def format_date_fr(dt: datetime, fmt: str) -> str:
+    """strftime() renvoie les noms de jour/mois en anglais (locale C).
+    On formate en anglais puis on remplace les mots par leur équivalent français."""
+    text = dt.strftime(fmt)
+    for en, fr in FR_DAYS.items():
+        text = text.replace(en, fr)
+    for en, fr in FR_MONTHS.items():
+        text = text.replace(en, fr)
+    for en, fr in FR_MONTHS_ABBR.items():
+        text = text.replace(en, fr)
+    return text
+
+
+# ─── Traduction des contenus externes (Finnhub) ────────────────────────────
+_translation_cache: dict = {}
+
+
+def translate_to_fr(text: str) -> str:
+    """Traduit un texte anglais (headline/événement Finnhub) vers le français.
+    Mise en cache pour ne pas retraduire le même texte plusieurs fois,
+    et repli silencieux sur le texte original si la traduction échoue."""
+    if not text or GoogleTranslator is None:
+        return text
+    if text in _translation_cache:
+        return _translation_cache[text]
+    try:
+        translated = GoogleTranslator(source="en", target="fr").translate(text)
+        result = translated or text
+    except Exception as e:
+        logger.warning(f"Traduction échouée: {e}")
+        result = text
+    _translation_cache[text] = result
+    return result
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -298,7 +354,7 @@ async def fetch_todays_events() -> list:
 
 # ─── Message builders ─────────────────────────────────────────────────────────
 def build_status_message(mics: list, title: str = "📊 Marchés") -> str:
-    today = datetime.now(ZoneInfo("UTC")).strftime("%A %d %B %Y")
+    today = format_date_fr(datetime.now(ZoneInfo("UTC")), "%A %d %B %Y")
     lines = [f"*{esc(title)}*", f"🗓 _{esc(today)} \\(UTC\\)_", ""]
 
     for mic in mics:
@@ -328,7 +384,7 @@ def build_events_message(events: list, title: str = "📅 Événements de la sem
         time_str = e.get("time", "")
         try:
             dt      = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
-            day_key = dt.strftime("%A %d %b")
+            day_key = format_date_fr(dt, "%A %d %b")
             e["_hour"] = dt.strftime("%H:%M")
         except Exception:
             day_key    = "À venir"
@@ -345,7 +401,7 @@ def build_events_message(events: list, title: str = "📅 Événements de la sem
         for e in day_events[:6]:
             country_raw = e.get("country","").upper().strip()
             flag     = COUNTRY_FLAGS.get(country_raw, "🌐")
-            name     = esc(e.get("event", "?")[:50])
+            name     = esc(translate_to_fr(e.get("event", "?"))[:50])
             hour     = esc(e.get("_hour", "—"))
             forecast = e.get("estimate", "")
             prev     = e.get("prev", "")
@@ -380,7 +436,7 @@ def build_evening_recap(markets_msg: str, events: list, news: list) -> str:
         lines = ["", "*📊 Bilan économique du jour*", ""]
         for e in events[:8]:
             flag     = COUNTRY_FLAGS.get(e.get("country","").upper(), "🌐")
-            name     = esc(e.get("event","?")[:50])
+            name     = esc(translate_to_fr(e.get("event","?"))[:50])
             actual   = e.get("actual","")
             forecast = e.get("estimate","")
             prev     = e.get("prev","")
@@ -411,7 +467,7 @@ def build_evening_recap(markets_msg: str, events: list, news: list) -> str:
     if news:
         lines = ["", "*📰 Récap actualités du jour*", ""]
         for i, item in enumerate(news[:6], 1):
-            headline = item.get("headline","Sans titre")[:100]
+            headline = translate_to_fr(item.get("headline","Sans titre"))[:150]
             source   = item.get("source","")
             url      = item.get("url","")
             ts       = item.get("datetime",0)
@@ -445,7 +501,7 @@ def build_news_message(news: list, title: str = "📰 Actualités marchés") -> 
 
     lines = [f"*{esc(title)}*", ""]
     for i, item in enumerate(news[:6], 1):
-        headline = item.get("headline", "Sans titre")[:100]
+        headline = translate_to_fr(item.get("headline", "Sans titre"))[:150]
         source   = item.get("source", "")
         url      = item.get("url", "")
         ts       = item.get("datetime", 0)
@@ -713,7 +769,7 @@ async def cmd_holidays(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         entries = by_date[day]
         try:
             dt     = datetime.strptime(day, "%Y-%m-%d")
-            day_fr = dt.strftime("%d %B %Y")
+            day_fr = format_date_fr(dt, "%d %B %Y")
         except Exception:
             day_fr = day
         lines.append(f"📅 *{esc(day_fr)}*")
